@@ -21,6 +21,9 @@ from pytorch_lightning.utilities import rank_zero_info
 from ldm.data.base import Txt2ImgIterableBaseDataset
 from ldm.util import instantiate_from_config
 
+import optuna
+
+
 def get_parser(**parser_kwargs):
     def str2bool(v):
         if isinstance(v, bool):
@@ -121,6 +124,7 @@ def get_parser(**parser_kwargs):
         default=True,
         help="scale base-lr by ngpu * batch_size * n_accumulate",
     )
+    
     return parser
 
 
@@ -203,7 +207,7 @@ class DataModuleFromConfig(pl.LightningDataModule):
             init_fn = None
         return DataLoader(self.datasets["train"], batch_size=self.batch_size,
                           num_workers=self.num_workers, shuffle=False if is_iterable_dataset else True,
-                          worker_init_fn=init_fn)
+                          worker_init_fn=init_fn, pin_memory=True)
 
     def _val_dataloader(self, shuffle=False):
         if isinstance(self.datasets['validation'], Txt2ImgIterableBaseDataset) or self.use_worker_init_fn:
@@ -214,7 +218,7 @@ class DataModuleFromConfig(pl.LightningDataModule):
                           batch_size=self.batch_size,
                           num_workers=self.num_workers,
                           worker_init_fn=init_fn,
-                          shuffle=shuffle)
+                          shuffle=shuffle, pin_memory=True)
 
     def _test_dataloader(self, shuffle=False):
         is_iterable_dataset = isinstance(self.datasets['train'], Txt2ImgIterableBaseDataset)
@@ -227,7 +231,7 @@ class DataModuleFromConfig(pl.LightningDataModule):
         shuffle = shuffle and (not is_iterable_dataset)
 
         return DataLoader(self.datasets["test"], batch_size=self.batch_size,
-                          num_workers=self.num_workers, worker_init_fn=init_fn, shuffle=shuffle)
+                          num_workers=self.num_workers, worker_init_fn=init_fn, shuffle=shuffle, pin_memory=True)
 
     def _predict_dataloader(self, shuffle=False):
         if isinstance(self.datasets['predict'], Txt2ImgIterableBaseDataset) or self.use_worker_init_fn:
@@ -401,7 +405,6 @@ class CUDACallback(Callback):
             rank_zero_info(f"Average Peak memory {max_memory:.2f}MiB")
         except AttributeError:
             pass
-
 
 if __name__ == "__main__":
     # custom parser to specify config files, train, test and debug mode,
@@ -646,7 +649,7 @@ if __name__ == "__main__":
 
         from pytorch_lightning.loggers import TensorBoardLogger
         tensorboard_logger = TensorBoardLogger(save_dir=logdir, name="my_experiment")
-        trainer = Trainer.from_argparse_args(trainer_opt, **trainer_kwargs, gpus=1, max_epochs=2000)
+        trainer = Trainer.from_argparse_args(trainer_opt, **trainer_kwargs, gpus=1)
         trainer.logdir = logdir  ###
 
         # data
@@ -706,7 +709,7 @@ if __name__ == "__main__":
 
         # run
         if opt.train:
-            try:
+            try:                
                 trainer.fit(model, data)
             except Exception:
                 melk()

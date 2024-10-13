@@ -110,14 +110,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--H",
         type=int,
-        default= 48,
+        default=48,
         help="image height, in pixel space",
     )
 
     parser.add_argument(
         "--W",
         type=int,
-        default= 48,
+        default=48,
         help="image width, in pixel space",
     )
 
@@ -198,12 +198,12 @@ if __name__ == "__main__":
                                                  unconditional_guidance_scale=opt.scale,
                                                  x0=x0,
                                                  eta=opt.ddim_eta,
-                                                 count = counter)
+                                                 counter=counter)
 
                 #x_samples_ddim = model.decode_first_stage(samples_ddim)
                 #x_samples_ddim = torch.clamp((x_samples_ddim+1.0)/2.0, min=0.0, max=1.0).detach().cpu()
 
-                x_samples_ddim = torch.clamp((samples_ddim+1.0)/2.0, min=0.0, max=1.0).detach().cpu()
+                #x_samples_ddim = torch.clamp((samples_ddim+1.0)/2.0, min=0.0, max=1.0).detach().cpu()
 
                 # for x_sample in x_samples_ddim:
                 #     save_nifti(x_sample, os.path.join(sample_path, os.path.join( f"{base_count:04}.nii.gz")))
@@ -213,5 +213,110 @@ if __name__ == "__main__":
                 #save_nifti(x_samples_ddim, os.path.join(sample_path, f"{subject_id}_{opt.source}_to_{opt.target}.nii.gz"))
                 #save_nifti(x_samples_ddim, os.path.join(sample_path, f"{counter}_{opt.source}_to_{opt.target}.nii.gz"))
                 counter += 1
+    import cv2
+    import os
+    import re
+
+    def get_time_index(filename):
+        match = re.search(r'time_(\d+)', filename)
+        if match:
+            return int(match.group(1))
+        return -1  # Return -1 if no match found
+
+    def create_video_from_images(input_folder, output_file, fps=10):
+        # Get all image files
+        images = [img for img in os.listdir(input_folder) if img.startswith("time_") and (img.endswith(".png") or img.endswith(".jpg"))]
+        
+        # Sort images based on the time index
+        images.sort(key=lambda x: get_time_index(x))
+
+        if not images:
+            print(f"No images found in {input_folder}")
+            return
+
+        # Read the first image to get dimensions
+        frame = cv2.imread(os.path.join(input_folder, images[0]))
+        height, width, layers = frame.shape
+
+        # Define the codec and create VideoWriter object
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter(output_file, fourcc, fps, (width, height))
+
+        for image in images:
+            img_path = os.path.join(input_folder, image)
+            frame = cv2.imread(img_path)
+            out.write(frame)
+            print(f"Processed: {image}")
+
+        out.release()
+        print(f"Video created: {output_file}")
+
+    def process_folders(base_folder):
+        for subfolder in ['1', '2']:
+            input_folder = os.path.join(base_folder, subfolder)
+            output_file = os.path.join(base_folder, f'video_{subfolder}.mp4')
+            create_video_from_images(input_folder, output_file)
+
+    # Usage
+    base_folder = 'Synthesized Cine through time'
+    process_folders(base_folder)
+
+    import target_cine_video
+
+    # import os
+    # import numpy as np
+    # import nibabel as nib
+    # import cv2
+
+    # def extract_frame_from_nifti(file_path):
+    #     # Load the NIfTI file
+    #     img = nib.load(file_path)
+    #     data = img.get_fdata()
+        
+    #     # Extract the 0th frame of the last index (assuming shape is 48,48,20)
+    #     frame = data[:,:,0]
+        
+    #     # Normalize to 0-255 range for video
+    #     frame = ((frame - frame.min()) / (frame.max() - frame.min()) * 255).astype(np.uint8)
+        
+    #     return frame
+
+    # def create_video_from_years(base_folder, start_year, end_year, output_file, fps=10):
+    #     frames = []
+    #     for year in range(start_year, end_year + 1):
+    #         folder = os.path.join(base_folder, str(year))
+    #         nifti_file = os.path.join(folder, str(year)+'_cine.nii.gz')
+            
+    #         if os.path.exists(nifti_file):
+    #             frame = extract_frame_from_nifti(nifti_file)
+    #             frames.append(frame)
+    #             print(f"Processed: {nifti_file}")
+    #         else:
+    #             print(f"File not found: {nifti_file}")
+        
+    #     if not frames:
+    #         print(f"No frames extracted for years {start_year}-{end_year}")
+    #         return
+        
+    #     # Create video
+    #     height, width = frames[0].shape
+    #     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    #     out = cv2.VideoWriter(output_file, fourcc, fps, (width, height))
+        
+    #     for frame in frames:
+    #         # Convert grayscale to RGB
+    #         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
+    #         out.write(rgb_frame)
+        
+    #     out.release()
+    #     print(f"Video created: {output_file}")
+
+    # def process_year_ranges(base_folder):
+    #     create_video_from_years(base_folder, 1960, 1979, os.path.join(base_folder, 'video_1960_1979.mp4'))
+    #     create_video_from_years(base_folder, 1980, 1999, os.path.join(base_folder, 'video_1980_1999.mp4'))
+
+    # # Usage
+    # base_folder = 'Nifty/ValidationData'
+    # process_year_ranges(base_folder)
 
     print(f"Your samples are ready and waiting four you here: \n{outpath} \nEnjoy.")
